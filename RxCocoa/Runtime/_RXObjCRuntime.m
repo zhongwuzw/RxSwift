@@ -464,7 +464,7 @@ method_prototype                                                                
                                   error:error];                                                                          \
  }                                                                                                                       \
 
-
+// 测试返回值为void且没有参数的函数swizzle
 @interface RXObjCRuntime (swizzle_void)
 @end
 
