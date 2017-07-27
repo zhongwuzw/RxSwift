@@ -465,6 +465,84 @@ method_prototype                                                                
  }                                                                                                                       \
 
 
+@interface RXObjCRuntime (swizzle_void)
+@end
+
+@implementation RXObjCRuntime (swizzle_void)
+
++ (void)example_void{}
+- (BOOL)swizzle_void:(Class __nonnull)class selector:(SEL)selector error:(NSError ** __nonnull)error {
+    __unused SEL rxSelector = RX_selector(selector);
+    IMP (^newImplementationGenerator)() = ^() {
+        __block IMP thisIMP = nil;
+        id newImplementation = ^void(__unsafe_unretained id self) {
+            id<RXMessageSentObserver> observer = objc_getAssociatedObject(self, rxSelector);   
+            
+            if (observer != nil && observer.targetImplementation == thisIMP) {
+                [observer messageSentWithArguments:@[[NSNull null]]];
+            }
+            
+            struct objc_super superInfo = {
+                .receiver = self,
+                .super_class = class_getSuperclass(class)
+            };
+            
+            void (*msgSend)(struct objc_super *, SEL)
+            = (__typeof__(msgSend))objc_msgSendSuper;
+            @try {
+                return msgSend(&superInfo, selector);
+            }
+            @finally {
+                if (observer != nil && observer.targetImplementation == thisIMP) {
+                    [observer methodInvokedWithArguments:@[[NSNull null]]];
+                }
+            }
+        };
+        thisIMP = imp_implementationWithBlock(newImplementation);
+        return thisIMP;
+    };
+    
+    IMP (^replacementImplementationGenerator)(IMP) = ^(IMP originalImplementation) {
+        __block void (*originalImplementationTyped)(__unsafe_unretained id, SEL)
+        = (__typeof__(originalImplementationTyped))(originalImplementation);
+        
+        __block IMP thisIMP = nil;
+        id implementationReplacement = ^void(__unsafe_unretained id self) {
+            id<RXMessageSentObserver> observer = objc_getAssociatedObject(self, rxSelector);
+            if (observer != nil && observer.targetImplementation == thisIMP) {
+                [observer messageSentWithArguments:@[[NSNull null]]];
+            }
+            @try {
+                return originalImplementationTyped(self, selector);
+            }
+            @finally {
+                if (observer != nil && observer.targetImplementation == thisIMP) {
+                    [observer methodInvokedWithArguments:@[[NSNull null]]];
+                }
+            }
+        };
+        
+        thisIMP = imp_implementationWithBlock(implementationReplacement);
+        return thisIMP;
+    };
+    
+    return [self ensureSwizzledSelector:selector
+                                ofClass:class
+             newImplementationGenerator:newImplementationGenerator
+     replacementImplementationGenerator:replacementImplementationGenerator
+                                  error:error];
+}
+
++(void)load {
+    __unused SEL exampleSelector = @selector(example_void);
+    [self registerOptimizedObserver:^BOOL(RXObjCRuntime * __nonnull self, Class __nonnull class,
+                                          SEL __nonnull selector, NSError **__nonnull error) {
+        return [self swizzle_void:class selector:selector error:error];
+    } encodedAs:exampleSelector];
+}
+
+@end
+
 @interface RXObjCRuntime (InfrastructureMethods)
 @end
 
@@ -515,35 +593,35 @@ SWIZZLE_INFRASTRUCTURE_METHOD(
 
 // MARK: Optimized intercepting methods for specific combination of parameter types
 
-SWIZZLE_OBSERVE_METHOD(void)
+//SWIZZLE_OBSERVE_METHOD(void)
 
-SWIZZLE_OBSERVE_METHOD(void, id)
-SWIZZLE_OBSERVE_METHOD(void, char)
-SWIZZLE_OBSERVE_METHOD(void, short)
-SWIZZLE_OBSERVE_METHOD(void, int)
-SWIZZLE_OBSERVE_METHOD(void, long)
-SWIZZLE_OBSERVE_METHOD(void, rx_uchar)
-SWIZZLE_OBSERVE_METHOD(void, rx_ushort)
-SWIZZLE_OBSERVE_METHOD(void, rx_uint)
-SWIZZLE_OBSERVE_METHOD(void, rx_ulong)
-SWIZZLE_OBSERVE_METHOD(void, rx_block)
-SWIZZLE_OBSERVE_METHOD(void, float)
-SWIZZLE_OBSERVE_METHOD(void, double)
-SWIZZLE_OBSERVE_METHOD(void, SEL)
-
-SWIZZLE_OBSERVE_METHOD(void, id, id)
-SWIZZLE_OBSERVE_METHOD(void, id, char)
-SWIZZLE_OBSERVE_METHOD(void, id, short)
-SWIZZLE_OBSERVE_METHOD(void, id, int)
-SWIZZLE_OBSERVE_METHOD(void, id, long)
-SWIZZLE_OBSERVE_METHOD(void, id, rx_uchar)
-SWIZZLE_OBSERVE_METHOD(void, id, rx_ushort)
-SWIZZLE_OBSERVE_METHOD(void, id, rx_uint)
-SWIZZLE_OBSERVE_METHOD(void, id, rx_ulong)
-SWIZZLE_OBSERVE_METHOD(void, id, rx_block)
-SWIZZLE_OBSERVE_METHOD(void, id, float)
-SWIZZLE_OBSERVE_METHOD(void, id, double)
-SWIZZLE_OBSERVE_METHOD(void, id, SEL)
+//SWIZZLE_OBSERVE_METHOD(void, id)
+//SWIZZLE_OBSERVE_METHOD(void, char)
+//SWIZZLE_OBSERVE_METHOD(void, short)
+//SWIZZLE_OBSERVE_METHOD(void, int)
+//SWIZZLE_OBSERVE_METHOD(void, long)
+//SWIZZLE_OBSERVE_METHOD(void, rx_uchar)
+//SWIZZLE_OBSERVE_METHOD(void, rx_ushort)
+//SWIZZLE_OBSERVE_METHOD(void, rx_uint)
+//SWIZZLE_OBSERVE_METHOD(void, rx_ulong)
+//SWIZZLE_OBSERVE_METHOD(void, rx_block)
+//SWIZZLE_OBSERVE_METHOD(void, float)
+//SWIZZLE_OBSERVE_METHOD(void, double)
+//SWIZZLE_OBSERVE_METHOD(void, SEL)
+//
+//SWIZZLE_OBSERVE_METHOD(void, id, id)
+//SWIZZLE_OBSERVE_METHOD(void, id, char)
+//SWIZZLE_OBSERVE_METHOD(void, id, short)
+//SWIZZLE_OBSERVE_METHOD(void, id, int)
+//SWIZZLE_OBSERVE_METHOD(void, id, long)
+//SWIZZLE_OBSERVE_METHOD(void, id, rx_uchar)
+//SWIZZLE_OBSERVE_METHOD(void, id, rx_ushort)
+//SWIZZLE_OBSERVE_METHOD(void, id, rx_uint)
+//SWIZZLE_OBSERVE_METHOD(void, id, rx_ulong)
+//SWIZZLE_OBSERVE_METHOD(void, id, rx_block)
+//SWIZZLE_OBSERVE_METHOD(void, id, float)
+//SWIZZLE_OBSERVE_METHOD(void, id, double)
+//SWIZZLE_OBSERVE_METHOD(void, id, SEL)
 
 // MARK: RXObjCRuntime
 
